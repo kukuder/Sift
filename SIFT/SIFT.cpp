@@ -6,7 +6,7 @@
 #include<Windows.h>
 #define PI 3.14159265358979323846
 #define E  2.718281828459045235
-/* test */
+
 using namespace std;
 
 struct RGBDATA {
