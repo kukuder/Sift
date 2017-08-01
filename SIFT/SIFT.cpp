@@ -15,6 +15,14 @@ struct RGBDATA {
 	BYTE rgbtBlue;
 };
 
+struct Feature
+{
+	Feature() { nextptr = NULL; }
+	int x, y;
+	Featureptr nextptr;
+};
+typedef Feature* Featureptr;
+
 SIFT::SIFT(char* inname)
 {
 	Readbmp(inname);
@@ -87,8 +95,13 @@ void SIFT::FeatureCheck()
 {
 	
 }
+//*** 角點偵測 ***//
+void SIFT::Hessian()
+{
+
+}
 //*** 擷取特徵點 ***//
-void SIFT::getFeature(float** kaidanImage, int InWidth, int InHeight)
+void SIFT::getFeature(float** kaidanImage, int InWidth, int InHeight, int insize)
 {
 	for (int k = 1; k < 2; k++)
 	{
@@ -100,13 +113,13 @@ void SIFT::getFeature(float** kaidanImage, int InWidth, int InHeight)
 				if (rof)
 				{
 					//處理此特徵點
-					float xxx = kaidanImage[1][j*InWidth+i];
 				}
 			}
 		}
 	}
 }
-bool SIFT::checkmaxmin(float ** doImage, int nowx, int nowy, int nowz,int InWidth)//未完待續
+//*** 檢查是否為極值 ***//
+bool SIFT::checkmaxmin(float ** doImage, int nowx, int nowy, int nowz,int InWidth)
 {
 	float value = doImage[nowz][nowy*InWidth + nowx];
 	bool maxc, minc;
@@ -121,10 +134,13 @@ bool SIFT::checkmaxmin(float ** doImage, int nowx, int nowy, int nowz,int InWidt
 					maxc = false;
 				if (doImage[k][j*InWidth + i] < value)
 					minc = false;
+				if (!(maxc | minc))
+					return false;
 			}
 		}
 	}
-	if (!(maxc | minc))
+	value = abs(value);
+	if (abs(value) < 0.015)
 		return false;
 	else
 		return true;
@@ -132,156 +148,79 @@ bool SIFT::checkmaxmin(float ** doImage, int nowx, int nowy, int nowz,int InWidt
 //*** 高斯模糊 ***//
 void SIFT::GusB(float** doImage,int inz, int InWidth, int InHeight, float sigma)
 {
-	float a, b, c,total;
-	a = pow(E, -2 / (2 * sigma*sigma)) / (2 * PI*sigma*sigma);
-	b = pow(E, -1 / (2 * sigma*sigma)) / (2 * PI*sigma*sigma);
-	c = 1 / (2 * PI*sigma*sigma);
-	total = 4 * a + 4 * b + c;
+	float a, b,total;
+	a = pow(E, -1 / (2 * sigma*sigma)) / sqrt(2 * PI*sigma*sigma);
+	b = 1 / sqrt(2 * PI*sigma*sigma);
+	
+	total = 2 * a + b;
 	a /= total;
 	b /= total;
-	c /= total;
 
-	float mask[9] = { a,b,a,b,c,b,a,b,a };
-	float block[9];
+	float musk[3] = { a,b,a };
+	float block[3];
+	//做橫向的高斯模糊
 	for (int j = 0; j < InHeight; j++)
 	{
 		for (int i = 0; i < InWidth; i++)
 		{
-			if (i == 0 && j == 0)
+			if (i == 0)
 			{
-				block[0] = 0;
-				block[1] = 0;
-				block[2] = 0;
-
-				block[3] = 0;
-				block[4] = doImage[inz][(j + 0)*InWidth + (i + 0)];
-				block[5] = doImage[inz][(j + 0)*InWidth + (i + 1)];
-
-				block[6] = 0;
-				block[7] = doImage[inz][(j + 1)*InWidth + (i + 0)];
-				block[8] = doImage[inz][(j + 1)*InWidth + (i + 1)];
-			}
-			else if (i == 0 && j == (InHeight - 1))
-			{
-				block[0] = 0;
-				block[1] = doImage[inz][(j - 1)*InWidth + (i + 0)];
-				block[2] = doImage[inz][(j - 1)*InWidth + (i + 1)];
-
-				block[3] = 0;
-				block[4] = doImage[inz][(j + 0)*InWidth + (i + 0)];
-				block[5] = doImage[inz][(j + 0)*InWidth + (i + 1)];
-
-				block[6] = 0;
-				block[7] = 0;
-				block[8] = 0;
-			}
-			else if (i == (InWidth - 1) && j == 0)
-			{
-				block[0] = 0;
-				block[1] = 0;
-				block[2] = 0;
-
-				block[3] = doImage[inz][(j + 0)*InWidth + (i - 1)];
-				block[4] = doImage[inz][(j + 0)*InWidth + (i + 0)];
-				block[5] = 0;
-
-				block[6] = doImage[inz][(j + 1)*InWidth + (i - 1)];
-				block[7] = doImage[inz][(j + 1)*InWidth + (i + 0)];
-				block[8] = 0;
-			}
-			else if (i == (InWidth - 1) && j == (InHeight - 1))
-			{
-				block[0] = doImage[inz][(j - 1)*InWidth + (i - 1)];
-				block[1] = doImage[inz][(j - 1)*InWidth + (i + 0)];
-				block[2] = 0;
-
-				block[3] = doImage[inz][(j + 0)*InWidth + (i - 1)];
-				block[4] = doImage[inz][(j + 0)*InWidth + (i + 0)];
-				block[5] = 0;
-
-				block[6] = 0;
-				block[7] = 0;
-				block[8] = 0;
-			}
-			else if (i == 0)
-			{
-				block[0] = 0;
-				block[1] = doImage[inz][(j - 1)*InWidth + (i + 0)];
-				block[2] = doImage[inz][(j - 1)*InWidth + (i + 1)];
-
-				block[3] = 0;
-				block[4] = doImage[inz][(j + 0)*InWidth + (i + 0)];
-				block[5] = doImage[inz][(j + 0)*InWidth + (i + 1)];
-
-				block[6] = 0;
-				block[7] = doImage[inz][(j + 1)*InWidth + (i + 0)];
-				block[8] = doImage[inz][(j + 1)*InWidth + (i + 1)];
+				block[0] = doImage[inz - 1][j*InWidth + i + 0];
+				block[1] = doImage[inz - 1][j*InWidth + i + 0];
+				block[2] = doImage[inz - 1][j*InWidth + i + 1];
 			}
 			else if (i == (InWidth - 1))
 			{
-				block[0] = doImage[inz][(j - 1)*InWidth + (i - 1)];
-				block[1] = doImage[inz][(j - 1)*InWidth + (i + 0)];
-				block[2] = 0;
-
-				block[3] = doImage[inz][(j + 0)*InWidth + (i - 1)];
-				block[4] = doImage[inz][(j + 0)*InWidth + (i + 0)];
-				block[5] = 0;
-
-				block[6] = doImage[inz][(j + 1)*InWidth + (i - 1)];
-				block[7] = doImage[inz][(j + 1)*InWidth + (i + 0)];
-				block[8] = 0;
-			}
-			else if (j == 0)
-			{
-				block[0] = 0;
-				block[1] = 0;
-				block[2] = 0;
-
-				block[3] = doImage[inz][(j + 0)*InWidth + (i - 1)];
-				block[4] = doImage[inz][(j + 0)*InWidth + (i + 0)];
-				block[5] = doImage[inz][(j + 0)*InWidth + (i + 1)];
-
-				block[6] = doImage[inz][(j + 1)*InWidth + (i - 1)];
-				block[7] = doImage[inz][(j + 1)*InWidth + (i + 0)];
-				block[8] = doImage[inz][(j + 1)*InWidth + (i + 1)];
-			}
-			else if (j == (InHeight - 1))
-			{
-				block[0] = doImage[inz][(j - 1)*InWidth + (i - 1)];
-				block[1] = doImage[inz][(j - 1)*InWidth + (i + 0)];
-				block[2] = doImage[inz][(j - 1)*InWidth + (i + 1)];
-
-				block[3] = doImage[inz][(j + 0)*InWidth + (i - 1)];
-				block[4] = doImage[inz][(j + 0)*InWidth + (i + 0)];
-				block[5] = doImage[inz][(j + 0)*InWidth + (i + 1)];
-
-				block[6] = 0;
-				block[7] = 0;
-				block[8] = 0;
+				block[0] = doImage[inz - 1][j*InWidth + i - 1];
+				block[1] = doImage[inz - 1][j*InWidth + i + 0];
+				block[2] = doImage[inz - 1][j*InWidth + i + 0];
 			}
 			else
 			{
-				block[0] = doImage[inz][(j - 1)*InWidth + (i - 1)];
-				block[1] = doImage[inz][(j - 1)*InWidth + (i + 0)];
-				block[2] = doImage[inz][(j - 1)*InWidth + (i + 1)];
-
-				block[3] = doImage[inz][(j + 0)*InWidth + (i - 1)];
-				block[4] = doImage[inz][(j + 0)*InWidth + (i + 0)];
-				block[5] = doImage[inz][(j + 0)*InWidth + (i + 1)];
-
-				block[6] = doImage[inz][(j + 1)*InWidth + (i - 1)];
-				block[7] = doImage[inz][(j + 1)*InWidth + (i + 0)];
-				block[8] = doImage[inz][(j + 1)*InWidth + (i + 1)];
+				block[0] = doImage[inz - 1][j*InWidth + i - 1];
+				block[1] = doImage[inz - 1][j*InWidth + i + 0];
+				block[2] = doImage[inz - 1][j*InWidth + i + 1];
 			}
-
-			for (int v = 0; v < 9; ++v)
+			total = 0;
+			for (int v = 0; v < 3; v++)
 			{
-				float add = 0;
-				 add += block[v] * mask[v];
-				 doImage[inz][j*InWidth + i] = add;
+				total += block[v]*musk[v];
 			}
+			doImage[inz][j*InWidth + i] = total;
 		}
 	}
+	//做縱向的高斯模糊
+	for (int j = 0; j < InHeight; j++)
+	{
+		for (int i = 0; i < InWidth; i++)
+		{
+			if (j == 0)
+			{
+				block[0] = doImage[inz][(j + 0)*InWidth + i];
+				block[1] = doImage[inz][(j + 0)*InWidth + i];
+				block[2] = doImage[inz][(j + 1)*InWidth + i];
+			}
+			else if (j == (InHeight - 1))
+			{
+				block[0] = doImage[inz][(j - 1)*InWidth + i];
+				block[1] = doImage[inz][(j + 0)*InWidth + i];
+				block[2] = doImage[inz][(j + 0)*InWidth + i];
+			}
+			else
+			{
+				block[0] = doImage[inz][(j - 1)*InWidth + i];
+				block[1] = doImage[inz][(j + 0)*InWidth + i];
+				block[2] = doImage[inz][(j + 1)*InWidth + i];
+			}
+			total = 0;
+			for (int v = 0; v < 3; v++)
+			{
+				total += block[v] * musk[v];
+			}
+			doImage[inz][j*InWidth + i] = total;
+		}
+	}
+	
 }
 //*** 高斯差 ***//
 void SIFT::GusC(float** FinalImage,int inz, int InWidth, int InHeight)
@@ -320,10 +259,11 @@ void SIFT::Feature()
 		int inWidth = Width*size;
 		int inHeight = Height*size;
 		//高斯模糊
-		for (int i = 0; i < 5; ++i)
+		KaIDaN[0] = new float[inWidth*inHeight];
+		ZoomInOut(KaIDaN[0], inWidth, inHeight);
+		for (int i = 1; i < 5; ++i)
 		{
 			KaIDaN[i] = new float[inWidth*inHeight];
-			ZoomInOut(KaIDaN[i], inWidth, inHeight);
 			GusB(KaIDaN, i, inWidth, inHeight);
 		}
 		//高斯差
@@ -332,7 +272,7 @@ void SIFT::Feature()
 			GusC(KaIDaN, i, inWidth, inHeight);
 		}
 		//擷取特徵點
-		getFeature(KaIDaN, inWidth, inHeight);
+		getFeature(KaIDaN, inWidth, inHeight,size);
 		for (int i = 0; i < 5; i++)
 		{
 			delete[] KaIDaN[i];

@@ -17,9 +17,10 @@ public:
 	void Readbmp(char* inname);
 	//*** 檢查是否為可用的特徵點 ***//
 	void FeatureCheck();
-	void getFeature(float** kaidanImage, int InWidth, int InHeight);
+	//*** 角點偵測 ***//
+	void Hessian();
 	//*** 擷取特徵點 ***//
-	void getFeature(float** upImage);
+	void getFeature(float** kaidanImage, int InWidth, int InHeight, int insize);
 	//*** 檢查該點是否為極值 ***//
 	bool checkmaxmin(float** doImage, int nowx, int nowy, int nowz, int InWidth);
 	//*** 高斯模糊 ***//
