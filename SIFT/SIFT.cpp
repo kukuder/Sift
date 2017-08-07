@@ -1,32 +1,23 @@
-#include"SIFT.h"
-#include<iostream>
-#include<fstream>
-#include<vector>
-#include<math.h>
-#include<Windows.h>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <math.h>
+#include <Windows.h>
+#include <string>
+#include "SIFT.h"
 #define PI 3.14159265358979323846
 #define E  2.718281828459045235
 /* test */
 using namespace std;
 
-struct RGBDATA {
-	BYTE rgbtRed;
-	BYTE rgbtGreen;
-	BYTE rgbtBlue;
-};
 
-struct Feature
-{
-	Feature() { nextptr = NULL; }
-	int x, y;
-	Featureptr nextptr;
-};
-typedef Feature* Featureptr;
 
 SIFT::SIFT(char* inname)
 {
 	Readbmp(inname);
 	RGB2Gray();
+	FeatureStart = new Feature;
+	FeatureEnd = FeatureStart;
 }
 
 SIFT::~SIFT()
@@ -86,33 +77,49 @@ void SIFT::Readbmp(char * inname)
 	}
 
 	//****************************輸出
-	OutBMP();
-	OutRAW();
+	//OutBMP("out.bmp");
+	//OutRAW("out.raw");
 	//**************************
 }
-//*** 檢查是否為可用的特徵點 ***//
-void SIFT::FeatureCheck()
-{
-	
-}
 //*** 角點偵測 ***//
-void SIFT::Hessian()
+bool SIFT::Hessian(float * DoImage, int Inx, int Iny ,int InWidth)
 {
+	float Dxx, Dyy, Dxy;
+	Dxx = DoImage[(Iny + 0)*InWidth + (Inx + 0)] * 2 - DoImage[(Iny + 0)*InWidth + (Inx - 1)] - DoImage[(Iny + 0)*InWidth + (Inx + 1)];
+	Dyy = DoImage[(Iny + 0)*InWidth + (Inx + 0)] * 2 - DoImage[(Iny + 1)*InWidth + (Inx + 0)] - DoImage[(Iny - 1)*InWidth + (Inx + 0)];
+	Dxy = DoImage[(Iny + 1)*InWidth + (Inx + 1)] + DoImage[(Iny - 1)*InWidth + (Inx - 1)] - DoImage[(Iny - 1)*InWidth + (Inx + 1)] - DoImage[(Iny + 1)*InWidth + (Inx - 1)];
+	Dxy /= 4;
 
+	float Tr, Det;
+	Tr = Dxx + Dyy;
+	Det = Dxx*Dyy - Dxy*Dxy;
+	if ((Tr*Tr / Det) < 12.1)//12.1 是 (r+1)/r  r為10 所得的值
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }
 //*** 擷取特徵點 ***//
 void SIFT::getFeature(float** kaidanImage, int InWidth, int InHeight, int insize)
 {
 	for (int k = 1; k < 2; k++)
 	{
-		for (int j = 1; j < (InHeight - 1); j++)
+		int r = insize * 3 * 1.5*(k + 1);
+		for (int j = r + 1; j < (InHeight - r - 1); j++)
 		{
-			for (int i = 1; i < (InWidth - 1); i++)
+			for (int i = r + 1; i < (InWidth - r - 1); i++)
 			{
-				bool rof = checkmaxmin(kaidanImage, i, j, k,InWidth);
-				if (rof)
+				bool rof = checkmaxmin(kaidanImage, i, j, k,InWidth);//極值檢測
+				if (rof == true)
 				{
-					//處理此特徵點
+					if (Hessian(kaidanImage[k], i, j, InWidth) == true)//角點偵測
+					{
+						//將此點加入特徵點資料結構裡面
+						AddFeature(kaidanImage[k], i, j, r, insize, InWidth, (k + 1));
+					}
 				}
 			}
 		}
@@ -148,16 +155,12 @@ bool SIFT::checkmaxmin(float ** doImage, int nowx, int nowy, int nowz,int InWidt
 //*** 高斯模糊 ***//
 void SIFT::GusB(float** doImage,int inz, int InWidth, int InHeight, float sigma)
 {
-	float a, b,total;
-	a = pow(E, -1 / (2 * sigma*sigma)) / sqrt(2 * PI*sigma*sigma);
-	b = 1 / sqrt(2 * PI*sigma*sigma);
 	
-	total = 2 * a + b;
-	a /= total;
-	b /= total;
 
-	float musk[3] = { a,b,a };
+	float musk[3];
+	GusPersent(musk, 3);
 	float block[3];
+	float total;
 	//做橫向的高斯模糊
 	for (int j = 0; j < InHeight; j++)
 	{
@@ -222,6 +225,27 @@ void SIFT::GusB(float** doImage,int inz, int InWidth, int InHeight, float sigma)
 	}
 	
 }
+//*** 計算高斯遮罩的機率(一維) ***//
+void SIFT::GusPersent(float *inarray, int line,float sigma)
+{
+	float *block = new float[line];
+	float total = 0;
+	int origin = (line + 1) / 2 - 1;
+	for (int i = origin; i < line; i++)
+	{
+		block[i] = pow(E, -(i - origin)*(i - origin) / (2 * sigma*sigma)) / (sqrt(2 * PI*sigma*sigma));
+		block[origin*2-i] = pow(E, -(i - origin)*(i - origin) / (2 * sigma*sigma)) / (sqrt(2 * PI*sigma*sigma));
+	}
+	for (int i = 0; i < line; i++)
+	{
+		total += block[i];
+	}
+	for (int i = 0; i < line; i++)
+	{
+		inarray[i] = block[i] / total;
+	}
+	delete[] block;
+}
 //*** 高斯差 ***//
 void SIFT::GusC(float** FinalImage,int inz, int InWidth, int InHeight)
 {
@@ -236,8 +260,144 @@ void SIFT::GusC(float** FinalImage,int inz, int InWidth, int InHeight)
 		}
 	}
 }
+//*** 印出箭頭 ***//
+void SIFT::display()
+{
+	this->Height;
+	Featureptr pictureS = FeatureStart;
+	while (pictureS->nextptr != NULL)
+	{
+		pictureS = pictureS->nextptr;
+		int x, y;
+		x = 1;
+		while (true)
+		{
+			y = x * tan(pictureS->sita);
+			if ((x*x + y*y) <= (pictureS->mm)*8000.0)
+			{
+				color[pictureS->y + y][pictureS->x + x].rgbtBlue = 255.0;
+				color[pictureS->y + y][pictureS->x + x].rgbtGreen = 0.0;
+				color[pictureS->y + y][pictureS->x + x].rgbtRed = 0.0;
+			}
+			else
+			{
+				break;
+			}
+			++x;
+		}
+	}
+}
+//*** 在特徵點串列後頭加入新的特徵點 ***//
+void SIFT::AddnewFeaturestruct(int Inx, int Iny, float Inm, int Insita)
+{
+	Featureptr newnode = new Feature;
+	newnode->x = Inx;
+	newnode->y = Iny;
+	newnode->mm = Inm;
+	newnode->sita = Insita;
+	newnode->nextptr = NULL;
+	FeatureEnd->nextptr = newnode;
+	FeatureEnd = newnode;
+}
+//添加特徵點
+void SIFT::AddFeature(float * doImage, int Inx, int Iny,int Inr,int Insize,int InWidth,float sigma)
+{
+	int newLength = Inr * 2 + 1;
+	float *musk = new float[newLength];//高斯分布的機率大小
+	GusPersent(musk, (Inr * 2 + 1), sigma);
+	float direction[36] = {0};//儲存36個方向的加總值
+	float *m, *sita;//建構出遮罩大小的m矩陣與sita矩陣
+	m = new float[newLength * newLength];
+	sita = new float[newLength * newLength];
+	int starty, endy;
+	int startx, endx;
+	starty = Iny - Inr; endy = Iny + Inr;
+	startx = Inx - Inr; endx = Inx + Inr;
+	for (int j = starty; j <= endy; j++)
+	{
+		for (int i = startx; i <= endx; i++)
+		{
+			//做m、sita計算
+			float Ldx, Ldy;
+			Ldx = doImage[(j + 0)*InWidth + (i + 1)] - doImage[(j + 0)*InWidth + (i - 1)];
+			Ldy = doImage[(j + 1)*InWidth + (i + 0)] - doImage[(j - 1)*InWidth + (i + 0)];
+			m[(j - starty)*newLength + (i - startx)] = sqrt(Ldx*Ldx + Ldy*Ldy);
+			if (Ldx == 0)
+			{
+				if (Ldy >= 0) sita[(j - starty)*newLength + (i - startx)] = 90.0;
+				else sita[(j - starty)*newLength + (i - startx)] = 270.0;
+			}
+			else
+			{
+				float getsita = tanh(Ldy / Ldx)*180.0 / PI;
+				if (getsita < 0) getsita = 360.0 + getsita;
+				sita[(j - starty)*newLength + (i - startx)] = getsita;
+			}
+		}
+	}
+	for (int j = 0; j < newLength; j++)
+	{
+		for (int i = 0; i < newLength; i++)
+		{
+			//做橫向高斯
+			m[j * newLength + i] *= musk[i];
+		}
+	}
+	for (int j = 0; j < newLength; j++)
+	{
+		for (int i = 0; i < newLength; i++)
+		{
+			//做縱向高斯
+			m[j * newLength + i] *= musk[j];
+		}
+	}
+	//計算矩陣內各方向的加總
+	for (int j = 0; j < newLength; j++)
+	{
+		for (int i = 0; i < newLength; i++)
+		{
+			int usesita = (sita[j * newLength + i]) / 10;
+			direction[usesita] += m[j * newLength + i];
+		}
+	}
+	int sitafoam[36];
+	int changesita;
+	float changedirection;
+	for (int i = 0; i < 36; i++)
+	{
+		sitafoam[i] = i * 10;
+	}
+	//將個角度內各大小地值做排序
+	for (int j = 0; j < 35; j++)
+	{
+		for (int i = 0; i < 35-j; i++)
+		{
+			if(direction[i] <= direction[i+1])
+			{
+				changesita = sitafoam[i];
+				sitafoam[i] = sitafoam[i + 1];
+				sitafoam[i + 1] = changesita;
 
-void SIFT::Feature()
+				changedirection = direction[i];
+				direction[i] = direction[i + 1];
+				direction[i + 1] = changedirection;
+			}
+		}
+	}
+	//找出主副方向並加入特徵點結構裡面
+	AddnewFeaturestruct(Inx / Insize, Iny / Insize, direction[0], sitafoam[0]);
+	int add = 1;
+	while (direction[add] >= 0.8*direction[0])
+	{
+		AddnewFeaturestruct(Inx / Insize, Iny / Insize, direction[add], sitafoam[add]);
+		++add;
+	}
+	delete[] musk;
+	delete[] m;
+	delete[] sita;
+}
+//完成一連串尋找特徵點的動作
+void SIFT::doFeature()
 {
 	//************** 以圖片大小計算出能把金字塔做多高 ****************//
 	float SizeMin;
@@ -314,7 +474,7 @@ void SIFT::ZoomInOut(float* doImage, int InWidth, int InHeight)
 	}
 	doImage[InHeight*InWidth - 1] = gray[Height*Width - 1];
 }
-//*** 轉灰階 ***//
+//*** 轉灰階並且正規化(pixel/255) ***//
 void SIFT::RGB2Gray()
 {
 	gray.resize(Height*Width);
@@ -328,7 +488,7 @@ void SIFT::RGB2Gray()
 	}
 }
 //*** 將檔案輸出成BMP格式 ***//
-void SIFT::OutBMP()
+void SIFT::OutBMP(string outname)
 {
 	int fix;
 	/* 計算每列需略過的 bytes 數 */
@@ -338,7 +498,8 @@ void SIFT::OutBMP()
 		fix = 0;
 
 	fstream out;
-	out.open("out.bmp", ios::out | ios::binary);
+	outname += ".bmp";
+	out.open(outname, ios::out | ios::binary);
 	out.write((char*)&FileHeader, sizeof(BITMAPFILEHEADER));
 	out.write((char*)&InfoHeader, sizeof(BITMAPINFOHEADER));
 
@@ -360,10 +521,11 @@ void SIFT::OutBMP()
 	}
 }
 //*** 將檔案輸出成RAW格式 ***//
-void SIFT::OutRAW()
+void SIFT::OutRAW(string outname)
 {
 	fstream out;
-	out.open("out.raw", ios::out | ios::binary);
+	outname += ".raw";
+	out.open(outname, ios::out | ios::binary);
 
 	for (int j = 0; j < Height; ++j)
 	{

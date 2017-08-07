@@ -4,6 +4,7 @@
 #include<vector>
 #include"SIFT.h"
 #define UsePicture "ball_01.bmp"
+#define OutPicture "Featurename"
 
 using namespace std;
 
@@ -15,8 +16,9 @@ int main(int argc, char** argv)
 	start = clock();
 	//*****************************************************************************
 	SIFT ImageSIFT(UsePicture);
-	ImageSIFT.Feature();
-	/* test */
+	ImageSIFT.doFeature();
+	ImageSIFT.display();
+	ImageSIFT.OutBMP(OutPicture);
 	//*****************************************************************************
 	end = clock();
 	cout << "花費時間為 :" << (end - start)/1000 <<  "秒" << endl;
