@@ -5,7 +5,7 @@
 #include <math.h>
 #include <Windows.h>
 #include <string>
-/* test */
+
 
 struct RGBDATA {
 	BYTE rgbtRed;
