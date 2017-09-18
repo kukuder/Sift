@@ -58,8 +58,8 @@ void SIFT::Readbmp(char * inname)
 	/* 先讀取檔頭資訊 */
 	fp.read((char*)&FileHeader, sizeof(BITMAPFILEHEADER));
 	fp.read((char*)&InfoHeader, sizeof(BITMAPINFOHEADER));
-	cout << FileHeader.bfSize << endl;
-	cout << InfoHeader.biSizeImage << endl;
+	//cout << FileHeader.bfSize << endl;
+	//cout << InfoHeader.biSizeImage << endl;
 	/* 取得圖寬及圖高 */
 	Width = InfoHeader.biWidth;
 	Height = InfoHeader.biHeight;
@@ -123,7 +123,7 @@ bool SIFT::Hessian(float * DoImage, int Inx, int Iny ,int InWidth)
 	}
 }
 //*** 擷取特徵點 ***//
-void SIFT::getFeature(float** kaidanImage, float** DogImage, int InWidth, int InHeight, int insize, float sigma)
+void SIFT::getFeature(float** kaidanImage, float** DogImage, int InWidth, int InHeight, float insize, float sigma)
 {
 	for (int k = 1; k <= 2; k++)
 	{
@@ -403,7 +403,7 @@ void SIFT::display()
 	}
 }
 //*** 在特徵點串列後頭加入新的特徵點 ***//
-void SIFT::AddnewFeaturestruct(int Inx, int Iny, int Insize, int kai, int sigmaOCT, float Inm, int Insita)
+void SIFT::AddnewFeaturestruct(int Inx, int Iny, float Insize, int kai, int sigmaOCT, float Inm, int Insita)
 {
 	Featureptr newnode = new Feature;
 	newnode->x = Inx;
@@ -417,8 +417,8 @@ void SIFT::AddnewFeaturestruct(int Inx, int Iny, int Insize, int kai, int sigmaO
 	FeatureEnd->nextptr = newnode;
 	FeatureEnd = newnode;
 }
-//*** 添加特徵點 ***//
-void SIFT::AddFeature(float * doImage, int Inx, int Iny,int Inr,int Insize,int InWidth,float sigma, int kai)
+//*** 找主副方向+添加特徵點 ***//
+void SIFT::AddFeature(float * doImage, int Inx, int Iny,int Inr,float Insize,int InWidth,float sigma, int kai)
 {
 	int newLength = Inr * 2 + 1;
 	float *musk = new float[newLength];//高斯分布的機率大小
@@ -522,7 +522,7 @@ void SIFT::doFeature()
 	int nowkai = 0;
 	FirstPicture = new float[Width*Height];
 	GetGrayPicture(FirstPicture);
-	for (float size = 1; size >= 1; size/=2)
+	for (float size = 2; size >= Limit; size/=2)
 	{
 		float** KaIDaN;
 		float** KaIDaNGray;
@@ -533,7 +533,7 @@ void SIFT::doFeature()
 		KaIDaN[0] = new float[inWidth*inHeight];
 		ZoomInOut(KaIDaN[0], inWidth, inHeight);
 		//測試輸出
-		OutBMPCheck("灰階圖", inWidth, inHeight, KaIDaN);//測試輸出
+		//OutBMPCheck("灰階圖", inWidth, inHeight, KaIDaN);//測試輸出
 		if (nowkai == 0)
 		{
 			Gusto(KaIDaN[0], inWidth, inHeight, SIGMA);
@@ -548,8 +548,8 @@ void SIFT::doFeature()
 			GusB(KaIDaN, i, inWidth, inHeight, SIGMA*pow(sqrt(2),i));
 		}
 		//測試輸出
-		OutRAW("out");
-		OutBMPCheck("階圖", inWidth, inHeight, KaIDaN);//測試輸出
+		//OutRAW("out");
+		//OutBMPCheck("階圖", inWidth, inHeight, KaIDaN);//測試輸出
 		//高斯差
 		KaIDaNGray = new float*[3];
 		for (int i = 0; i < 4; i++)
@@ -561,7 +561,7 @@ void SIFT::doFeature()
 			GusC(KaIDaN, KaIDaNGray, i, inWidth, inHeight);
 		}
 		//測試輸出
-		OutBMPCheck("差分圖", inWidth, inHeight, KaIDaNGray);//測試輸出
+		//OutBMPCheck("差分圖", inWidth, inHeight, KaIDaNGray);//測試輸出
 		//擷取特徵點
 		FeatureNow = FeatureEnd;
 		getFeature(KaIDaN, KaIDaNGray, inWidth, inHeight, size, SIGMA);
@@ -672,6 +672,31 @@ void SIFT::FeatureDescrip(float** kaidaImag)
 
 			}
 		}
+		//****** 限定門檻值
+		float add = 0.0;
+		for (int j = 0; j < 4; j++)
+		{
+			for (int i = 0; i < 4; i++)
+			{
+				for (int v = 0; v < 8; v++)
+				{
+					if (descripgroup[j][i][v] > 0.2) descripgroup[j][i][v] = 0.2;
+					add += descripgroup[j][i][v];
+				}
+			}
+		}
+		//****** 向量正規化
+		add = sqrt(add);
+		for (int j = 0; j < 4; j++)
+		{
+			for (int i = 0; i < 4; i++)
+			{
+				for (int v = 0; v < 8; v++)
+				{
+					descripgroup[j][i][v] /= add;
+				}
+			}
+		}
 		FeatureS->descrip = descripgroup;
 	}
 }
@@ -714,13 +739,13 @@ void SIFT::ZoomInOut(float* doImage, int InWidth, int InHeight)
 void SIFT::RGB2Gray()
 {
 	//gray.resize(Height*Width);
-	gray = new float[Height * Width];
+	gray = new double[Height * Width];
 	for (int j = 0; j < Height; ++j)
 	{
 		for (int i = 0; i < Width; ++i)
 		{
 			gray[j*Width + i] = color[j][i].rgbtRed*0.299 + color[j][i].rgbtGreen*0.587 + color[j][i].rgbtBlue*0.114;
-			//gray[j*Width + i] /= 255.0;
+			gray[j*Width + i] /= 255.0;
 		}
 	}
 }
@@ -777,7 +802,7 @@ void SIFT::OutRAW(string outname)
 	for (int j = 0; j < Height * Width; ++j)
 	{
 		float value = gray[j];
-		//value *= 255.0;
+		value *= 255.0;
 		if (value > 255)value = 255.0;
 		else if (value < 0) value = 0.0;
 		out.write((char*)&value, sizeof(float));
@@ -794,14 +819,14 @@ void SIFT::Destroy()
 		FeatureStart = nowptr;
 	}
 }
-//*** 高斯模糊(通用版) ***//
+//*** 高斯矩陣 ***//
 void SIFT::Gusto(float * doImage, int InWidth, int InHeight, float sigma)
 {
 	float musk[3];
 	GusPersent(musk, 3, sigma);
 	float block[3];
 	float total;
-	//做橫向的高斯模糊
+	//做橫向的高斯矩陣
 	for (int j = 0; j < InHeight; j++)
 	{
 		for (int i = 0; i < InWidth; i++)
@@ -832,7 +857,7 @@ void SIFT::Gusto(float * doImage, int InWidth, int InHeight, float sigma)
 			doImage[j*InWidth + i] = total;
 		}
 	}
-	//做縱向的高斯模糊
+	//做縱向的高斯矩陣
 	for (int j = 0; j < InHeight; j++)
 	{
 		for (int i = 0; i < InWidth; i++)
@@ -896,10 +921,9 @@ void SIFT::OutBMPCheck(std::string outname , int inwidth, int inheight, float **
 		{
 			RGBTRIPLE rgb;
 			rgb.rgbtBlue = doImage[0][i + j * inwidth];
+			rgb.rgbtBlue *= 255.0;
 			if (rgb.rgbtBlue < 0.0) rgb.rgbtBlue = 0.0;
-			else rgb.rgbtBlue *= 255.0;
-
-			if (rgb.rgbtBlue > 255.0)rgb.rgbtBlue = 255.0;
+			else if (rgb.rgbtBlue > 255.0)rgb.rgbtBlue = 255.0;
 
 			rgb.rgbtGreen = rgb.rgbtRed = rgb.rgbtBlue;
 
@@ -912,55 +936,34 @@ void SIFT::OutBMPCheck(std::string outname , int inwidth, int inheight, float **
 		}
 	}
 }
-
-
-//*** 座標轉換 ***//
-void CoordinateChange(int* deltaX, int* deltaY, float sita)
+//*** 取得標頭檔1 ***//
+BITMAPFILEHEADER SIFT::GetFileHeader(void)
 {
-	int newxx, newyy;
-	newxx = cos(sita)*(*deltaX) - sin(sita)*(*deltaY);
-	newyy = sin(sita)*(*deltaX) + cos(sita)*(*deltaY);
-	(*deltaX) = newxx;
-	(*deltaY) = newyy;
+	return	FileHeader;
 }
-//*** 求m(強度)值 ***//
-float getM(float x0, float x1, float y0, float y1)
+//*** 取得標頭檔2 ***//
+BITMAPINFOHEADER SIFT::GetInfoHeader(void)
 {
-	float mm;
-	mm = (x1 - x0)*(x1 - x0) + (y1 - y0)*(y1 - y0);
-	mm = sqrt(mm);
-	return mm;
+	return InfoHeader;
 }
-//*** 求sita值(徑度) ***//
-float getSita(float x0, float x1, float y0, float y1)
+//*** 取得圖片內容 ***//
+RGBTRIPLE** SIFT::Getcolor(void)
 {
-	float sita;
-	if (x0 == x1)
-	{
-		if (y1 > y0) sita = PI / 2;
-		else sita = PI * 3 / 2;
-	}
-	else
-	{
-		sita = tanh((y1 - y0) / (x1 - x0));
-		if (x1 < x0) sita += PI;
-		if (sita < 0) sita = 2 * PI + sita;
-		if (sita >= 2 * PI) sita -= 2 * PI;
-	}
-
-	
-
-	return sita;
+	return color;
+}
+//*** 取得特徵點料結構的開頭 ***//
+Featureptr SIFT::GetFeatureptr(void)
+{
+	return FeatureStart;
 }
 
+//************************************************************************************************************//
 
-
-
-
-
-
-Stitching::Stitching(BITMAPFILEHEADER Filedata, BITMAPINFOHEADER Infodata)
+Stitching::Stitching(BITMAPFILEHEADER Filedata, BITMAPINFOHEADER Infodata, RGBTRIPLE** image1, RGBTRIPLE** image2, Featureptr inFeatureptr1, Featureptr inFeatureptr2)
 {
+	FeatureStart1 = inFeatureptr1;
+	FeatureStart2 = inFeatureptr2;
+
 	FileHeader = Filedata;
 	InfoHeader = Infodata;
 
@@ -969,14 +972,24 @@ Stitching::Stitching(BITMAPFILEHEADER Filedata, BITMAPINFOHEADER Infodata)
 	Width = Infodata.biWidth * 2;
 	Height = InfoHeader.biHeight;
 
-	int widthsize;
+	int widthsize = Width * 3;
 	if (Width % 4 != 0)
 	{
-		widthsize = Width * 3 + (4 - Width % 4);
+		widthsize += (4 - Width % 4);
 	}
 
 	InfoHeader.biSizeImage = widthsize * Height;
 	FileHeader.bfSize = InfoHeader.biSizeImage + 54;
+
+	WriteImage(image1, image2);
+}
+Stitching::~Stitching()
+{
+	for (int i = 0; i < Height; i++)
+	{
+		delete[] color[i];
+	}
+	delete[] color;
 }
 
 void Stitching::OutBMP(string outname)
@@ -1027,7 +1040,7 @@ void Stitching::OutRAW(string outname)
 		}
 	}
 }
-//*** 
+//*** 寫入兩張圖片的資訊 
 void Stitching::WriteImage(RGBTRIPLE** image1, RGBTRIPLE** image2)
 {
 	color = new RGBTRIPLE*[Height];
@@ -1049,4 +1062,192 @@ void Stitching::WriteImage(RGBTRIPLE** image1, RGBTRIPLE** image2)
 			color[j][i] = image2[j][i - (Width / 2)];
 		}
 	}
+}
+//*** 檢查是否有相同的特徵描述子 ***//
+void Stitching::Check(void)
+{
+	Featureptr startlink1, startlink2;
+	startlink1 = FeatureStart1;
+	startlink2 = FeatureStart2;
+	int pc = 0;
+	while (startlink1->nextptr != nullptr)
+	{
+		startlink1 = startlink1->nextptr;
+
+		float distance1, distance2;
+		distance1 = distance2 = 0xffffffff;
+		float useX1, useY1;
+		useX1 = useY1 = 0xffffffff;
+
+		startlink2 = FeatureStart2;
+		while (startlink2->nextptr != nullptr)
+		{
+			startlink2 = startlink2->nextptr;
+
+			//*********************************************************************
+			int gg = 1;
+			if (startlink1->x <= 0)
+			{
+				gg = 1;
+			}
+			if (startlink1->y <= 0)
+			{
+				gg = 1;
+			}
+			if (startlink2->x <= 0)
+			{
+				gg = 1;
+			}
+			if (startlink2->y <= 0)
+			{
+				gg = 1;
+			}
+			if (startlink1->size <= 0)
+			{
+				gg = 1;
+			}
+			if (startlink2->size <= 0)
+			{
+				gg = 1;
+			}
+			//*********************************************************************
+
+			//******* 找處距離最近的兩個點
+			float value = EuclideanDistance(startlink1->descrip, startlink2->descrip);
+			if (value < distance1)
+			{
+				distance2 = distance1;
+				distance1 = value;
+
+				useX1 = startlink2->x / startlink2->size;
+				useY1 = startlink2->y / startlink2->size;
+			}
+			else if (value < distance2)
+			{
+				distance2 = value;
+			}
+		}
+		//****** 確認是否匹配成功並畫線(閥值設為0.04)
+		if ((distance1 / distance2) < 0.8)//閥值越小找到的點越少但越可靠
+		{
+			int x1, y1;
+			x1 = startlink1->x / startlink1->size;
+			y1 = startlink1->y / startlink1->size;
+			
+			Link(x1, y1, useX1 + (Width / 2), useY1);
+			++pc;
+		}
+	}
+	cout << "pc : " << pc << endl;
+}
+//*** 將帶入的兩點相連 ***//
+void Stitching::Link(int x1, int y1, int x2, int y2)
+{
+	int miny,minx,maxx;
+	float slope;
+
+	if (x2 == x1)
+	{
+		slope = 0xffff;
+	}
+	else
+	{
+		float dx, dy;
+		dx = x2 - x1;
+		dy = y2 - y1;
+		slope = dy / dx;
+	}
+
+	if (x1 > x2)
+	{
+		minx = x2;
+		maxx = x1;
+		miny = y2;
+	}
+	else
+	{
+		minx = x1;
+		maxx = x2;
+		miny = y1;
+	}
+
+	for (int i = minx; i < maxx; i++)
+	{
+		if (slope != 0.0)
+		{
+			int usey = (i - minx) * slope;
+			if (usey < Height && usey >= 0)
+			{
+				color[miny + usey][i].rgbtBlue = 100;
+				color[miny + usey][i].rgbtGreen = 100;
+				color[miny + usey][i].rgbtRed = 255;
+			}
+		}
+		else
+		{
+			color[y1][i].rgbtBlue = 100;
+			color[y1][i].rgbtGreen = 100;
+			color[y1][i].rgbtRed = 255;
+		}
+	}
+}
+//*** 計算兩個描述子之間的歐式距離 ***//
+float Stitching::EuclideanDistance(vector<vector<vector<float>>> point1, vector<vector<vector<float>>> point2)
+{
+	float add = 0.0;
+	for (int k = 0; k < 4; k++)
+	{
+		for (int j = 0; j < 4; j++)
+		{
+			for (int i = 0; i < 8; i++)
+			{
+				float reduce;
+				reduce = point1[k][j][i] - point2[k][j][i];
+				add += reduce * reduce;
+			}
+		}
+	}
+	add = sqrt(add);
+	return add;
+}
+
+//************************************************************************************************************//
+
+//*** 座標轉換 ***//
+void CoordinateChange(int* deltaX, int* deltaY, float sita)
+{
+	int newxx, newyy;
+	newxx = cos(sita)*(*deltaX) - sin(sita)*(*deltaY);
+	newyy = sin(sita)*(*deltaX) + cos(sita)*(*deltaY);
+	(*deltaX) = newxx;
+	(*deltaY) = newyy;
+}
+//*** 求m(強度)值 ***//
+float getM(float x0, float x1, float y0, float y1)
+{
+	float mm;
+	mm = (x1 - x0)*(x1 - x0) + (y1 - y0)*(y1 - y0);
+	mm = sqrt(mm);
+	return mm;
+}
+//*** 求sita值(徑度) ***//
+float getSita(float x0, float x1, float y0, float y1)
+{
+	float sita;
+	if (x0 == x1)
+	{
+		if (y1 > y0) sita = PI / 2;
+		else sita = PI * 3 / 2;
+	}
+	else
+	{
+		sita = atanf((y1 - y0) / (x1 - x0));
+		if (x1 < x0) sita += PI;
+		if (sita < 0) sita = 2 * PI + sita;
+		if (sita >= 2 * PI) sita -= 2 * PI;
+	}
+
+
+
+	return sita;
 }

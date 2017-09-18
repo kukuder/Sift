@@ -7,28 +7,12 @@ struct RGBDATA;
 struct Feature;
 typedef struct Feature* Featureptr;
 
-class Stitching
-{
-private:
-	int Width, Height;
-	RGBTRIPLE** color;
-	BITMAPFILEHEADER FileHeader;
-	BITMAPINFOHEADER InfoHeader;
-public:
-	Stitching(BITMAPFILEHEADER Filedata, BITMAPINFOHEADER Infodata);
-	~Stitching();
-	void OutBMP(std::string outname);
-	void OutRAW(std::string outname);
-	void WriteImage(RGBTRIPLE** image1, RGBTRIPLE** image2);
-};
-
-
 class SIFT
 {
 private:
 	
 	int Width, Height;
-	float *gray;
+	double *gray;
 	Featureptr FeatureStart, FeatureEnd, FeatureNow;
 	RGBTRIPLE** color;
 	BITMAPFILEHEADER FileHeader;
@@ -40,7 +24,7 @@ public:
 	//*** 角點偵測 ***//
 	bool Hessian(float* DoImage, int Inx, int Iny, int InWidth);
 	//*** 擷取特徵點 ***//
-	void getFeature(float** kaidanImage, float** DogImage, int InWidth, int InHeight, int insize, float sigma);
+	void getFeature(float** kaidanImage, float** DogImage, int InWidth, int InHeight, float insize, float sigma);
 	//*** 檢查該點是否為極值 ***//
 	bool checkmaxmin(float** doImage, int nowx, int nowy, int nowz, int InWidth);
 	//*** 高斯模糊 ***//
@@ -52,9 +36,9 @@ public:
 	//*** 印出箭頭 ***//
 	void display();
 	//*** 在特徵點串列後頭加入新的特徵點 ***//
-	void AddnewFeaturestruct(int Inx, int Iny, int Insize,int kai, int sigmaOCT, float Inm, int Insita);
+	void AddnewFeaturestruct(int Inx, int Iny, float Insize,int kai, int sigmaOCT, float Inm, int Insita);
 	//*** 添加特徵點 ***//
-	void AddFeature(float* doImage, int Inx, int Iny, int Inr, int Insize,int InWidth,float sigma, int kai);
+	void AddFeature(float* doImage, int Inx, int Iny, int Inr, float Insize,int InWidth,float sigma, int kai);
 	//*** 完成一連串尋找特徵點的動作 ***//
 	void doFeature();
 	//*** 產生特徵描述子 ***//
@@ -75,6 +59,37 @@ public:
 	void Gusto(float* doImage, int InWidth, int InHeight, float sigma = 1.0);
 	//*** 輸出BMP(檢查用) ***//
 	void OutBMPCheck(std::string outname, int inwidth, int inheight, float ** doImage);
+	//*** 取得標頭檔1 ***//
+	BITMAPFILEHEADER GetFileHeader(void);
+	//*** 取得標頭檔2 ***//
+	BITMAPINFOHEADER GetInfoHeader(void);
+	//*** 取得圖片內容 ***//
+	RGBTRIPLE** Getcolor(void);
+	//*** 取得特徵點料結構的開頭 ***//
+	Featureptr GetFeatureptr(void);
+};
+
+class Stitching
+{
+private:
+	int Width, Height;
+	Featureptr FeatureStart1, FeatureStart2;
+	RGBTRIPLE** color;
+	BITMAPFILEHEADER FileHeader;
+	BITMAPINFOHEADER InfoHeader;
+public:
+	//*** 前兩項參數為標頭檔，第三、四項為圖片資訊，五、六項為特徵點資訊 ***//
+	Stitching(BITMAPFILEHEADER Filedata, BITMAPINFOHEADER Infodata, RGBTRIPLE** image1, RGBTRIPLE** image2, Featureptr inFeatureptr1, Featureptr inFeatureptr2);
+	~Stitching();
+	void OutBMP(std::string outname);
+	void OutRAW(std::string outname);
+	void WriteImage(RGBTRIPLE** image1, RGBTRIPLE** image2);
+	//*** 檢查是否有相同的特徵描述子 ***//
+	void Check(void);
+	//*** 將帶入的兩點相連 ***//
+	void Link(int x1, int y1, int x2, int y2);
+	//*** 計算兩個描述子之間的歐式距離 ***//
+	float EuclideanDistance(std::vector <std::vector <std::vector <float>>> point1, std::vector <std::vector <std::vector <float>>> point2);
 };
 
 
